@@ -2682,6 +2682,8 @@ where
             },
             &metrics,
         );
+        let started = bus.monotonic_now();
+        let started_at = bus.realtime_micros();
         Ok(Self {
             id,
             name,
@@ -2706,13 +2708,13 @@ where
             metadata_tick_handler: RefCell::new(None),
             segment_uploader: RefCell::new(None),
             undelivered_segment_uploads: Rc::default(),
-            upload_pacing: RefCell::new(upload_pacing::UploadPacing::new(Instant::now())),
+            upload_pacing: RefCell::new(upload_pacing::UploadPacing::new(started)),
             object_deleter: RefCell::new(None),
             undelivered_object_deletes: Rc::default(),
             manifest_publisher: RefCell::new(None),
             undelivered_manifest_publishes: Rc::default(),
             manifests_held: RefCell::default(),
-            fresh_writes: fresh_writes::FreshWrites::default(),
+            fresh_writes: fresh_writes::FreshWrites::new(started_at),
             fresh_sweeps: fresh_sweeps::FreshSweeps::default(),
             long_term_writer: RefCell::new(None),
             undelivered_segment_rewrites: Rc::default(),
@@ -3664,6 +3666,8 @@ where
         let plane = MuxPlane::new(variadic!(metadata, partitions));
         let ShardIdentity { id, name } = identity;
         let host: Rc<dyn ShardHost> = Rc::new(NoopHost);
+        let started = bus.monotonic_now();
+        let started_at = bus.realtime_micros();
         Self {
             id,
             name,
@@ -3701,13 +3705,13 @@ where
             metadata_tick_handler: RefCell::new(None),
             segment_uploader: RefCell::new(None),
             undelivered_segment_uploads: Rc::default(),
-            upload_pacing: RefCell::new(upload_pacing::UploadPacing::new(Instant::now())),
+            upload_pacing: RefCell::new(upload_pacing::UploadPacing::new(started)),
             object_deleter: RefCell::new(None),
             undelivered_object_deletes: Rc::default(),
             manifest_publisher: RefCell::new(None),
             undelivered_manifest_publishes: Rc::default(),
             manifests_held: RefCell::default(),
-            fresh_writes: fresh_writes::FreshWrites::default(),
+            fresh_writes: fresh_writes::FreshWrites::new(started_at),
             fresh_sweeps: fresh_sweeps::FreshSweeps::default(),
             long_term_writer: RefCell::new(None),
             undelivered_segment_rewrites: Rc::default(),
@@ -10258,7 +10262,7 @@ where
     /// changed while the tick awaited.
     fn settle_ticked_partitions(&self, visited: &[IggyNamespace]) {
         let partitions = self.plane.partitions();
-        let manifest_now = IggyTimestamp::now();
+        let manifest_now = IggyTimestamp::from(self.bus.realtime_micros());
         for namespace in visited {
             let quiet_until = partitions
                 .sent_report(namespace)
